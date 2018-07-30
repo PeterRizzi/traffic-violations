@@ -1,0 +1,910 @@
+---
+title: "Comparison of Inequalities within Montgomery County Using Traffic Violation Data "
+author: "Peter Rizzi, Jessica Yuan, Nic Jeffress, Nakian Kim"
+date: "December 1, 2017"
+output: pdf_document
+fontsize: 10pt
+geometry: margin=1in
+---
+
+# Introduction
+Montgomery County, Maryland, has a population of approximately one million and is contained in the Washington, D.C. Metropolitan Statistical Area (U.S. Census). In 2011, Montgomery County was ranked by Forbes as the 8th richest county in the U.S. (Woolsey). However, could there be inequalities based on demographic factors, such as race?   
+
+Baltimore, Maryland, which neighbors Montgomery County, has already seen excessive acts of inequality in the past years. Most recently, in 2015, the Baltimore Riots occurred, where citizens rioted as response to police brutality speculated around the arrest and death of Freddie Gray, a young African-American. Riots escalalted to the point in need of declaring the state of emergency in Baltimore (Botelho, Yan, Ford). This signifies an obvious sign of tension among different races within Maryland, and these could potentially exist in Montgomery County as well considering it's geographic proximity.   
+
+Despite being an exceptionally wealthy county, after doing preliminary data analysis, our team has discovered potential inequalities in Montgomery County. Figure 1 below, with data pulled from the FRED database, compares income inequality in Montgomery County to inequality in Fairfax County and Prince County, both of which are neighboring counties. Fairfax County even has a nearly identical population size and is also among the top 10 wealthiest counties. This comparison looks over the income inequalities from the three counties over the years 2012 to October 2017.   
+
+```{r fig1, fig.height=5, fig.width=8, echo=FALSE, message=FALSE, warning=FALSE}
+library(RSQLite)
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(yrbss)
+library(ggmap)
+library(magrittr)
+library(tidyr)
+
+dcon<-dbConnect(SQLite(), dbname="C:/Users/jmyyu/Documents/MONTGOMERY.sqlite")
+
+res <- dbSendQuery(conn = dcon, '
+SELECT DATE as date, "2020RATIO024031" as ratio
+FROM incomeinequality;
+')
+incInequality <- dbFetch(res, -1)
+dbClearResult(res)
+
+res <- dbSendQuery(conn = dcon, '
+SELECT DATE as date, "2020RATIO051059" as ratio
+FROM incinequalityFairfax;
+')
+incInequalityFairfax <- dbFetch(res, -1)
+dbClearResult(res)
+
+res <- dbSendQuery(conn = dcon, '
+SELECT DATE as date, "2020RATIO024033" as ratio
+FROM "prince inequality 1";
+')
+incInequalityPrince <- dbFetch(res, -1)
+dbClearResult(res)
+
+
+
+
+Inequalityplot <- ggplot(incInequality, aes(x = date, y = ratio, group = 1)) + geom_line(aes(color="Montgomery County, MD")) + geom_line(data = incInequalityFairfax, aes(date, ratio, group = 1, color = "Fairfax County, VA")) + geom_line(data = incInequalityPrince, aes(date, ratio, group = 1, color = "Prince George's County, MD")) + ggtitle("Income Inequality -- Montgomery County, MD vs. Its Peers", subtitle = "(Ratio of highest quintile of earners to lowest quintile of earners)") + ylab("Inequality Ratio") + xlab("Year") +theme(axis.text.x=element_text(size=8)) + theme(legend.title=element_blank(), plot.title=element_text(size=13))
+
+res <- dbSendQuery(conn = dcon, '
+SELECT Fact as fact, MontgomeryCountyMaryland as stat
+FROM "censusDataFull";
+')
+montgomeryStats <- dbFetch(res, -1)
+dbClearResult(res)
+#Pop2016
+pop2016m <- montgomeryStats$stat[[1]]
+#medinc
+medIncm <- montgomeryStats$stat[[48]]
+
+res <- dbSendQuery(conn = dcon, '
+SELECT Fact as fact, FairfaxCountyVirginia as stat
+FROM "fairfax stats";
+')
+fairfaxStats <- dbFetch(res, -1)
+dbClearResult(res)
+#Pop2016
+pop2016f <- fairfaxStats$stat[[1]]
+medIncf <- fairfaxStats$stat[[48]]
+
+res <- dbSendQuery(conn = dcon, '
+SELECT Fact as fact, PrinceGeorgesCountyMaryland as stat
+FROM "prince stats";
+')
+princeStats <- dbFetch(res, -1)
+dbClearResult(res)
+#Pop2016
+pop2016p <- princeStats$stat[[1]]
+medIncp <- princeStats$stat[[which(princeStats$fact == "MedInc")]]
+
+dat <- data.frame(
+  county = c("Montgomery", "Fairfax", "Prince Georges"),
+  population = c(pop2016m, pop2016f, pop2016p),
+  medInc = c(medIncm, medIncf, medIncp)
+)
+pop <- ggplot(data = dat) + aes(county, fill = county) + 
+  geom_bar(aes(y = population), stat = "identity") + ylim(0,1200000) + geom_hline(aes(yintercept = 100000)) + theme(axis.text.x=element_blank()) + xlab("County") + ylab("Population")
+
+inc <- ggplot(data = dat) + aes(county, fill = county) + geom_bar(aes(y = medInc), stat = "identity") + geom_hline(aes(yintercept = 55775)) + theme(axis.text.x=element_blank()) + xlab("County") + ylab("Median Household Income")
+
+library(gridBase)
+library(grid)
+grid.newpage()
+vpincIn <- viewport(y = .75, height = 1/2)
+#grid.show.viewport(vpincIn)
+vppop <- viewport(x = 1/4, y = 1/4, width = 1/2, height = 1/2)
+#grid.show.viewport(vppop)
+vpinc <- viewport(x = 3/4, y = 1/4, width = 1/2, height = 1/2)
+#grid.newpage()
+print(Inequalityplot, vp = vpincIn); print(pop, vp = vppop); print(inc, vp = vpinc)
+```
+
+**Figure 1. Comparing the income inequalities of three similarly populated and wealthy counties.** The income inequality ratio (y-axis) is calculated by mean income for the highest quintile of earners divided by the mean income of the lowest quintile of earners. Higher ratio means that the difference between the mean income of the highest and the lowest earners is large, therefore indicating more income inequality.
+
+The disparity between the income inequality ratio of Montgomery County against Prince Georges County and Fairfax County is clear to see. This comparison implies presence of inequality in Montgomery County. However, more analysis is needed to see that this disparity is indeed significant in relative scale, and to see that Montgomery has higher inequality than other comparable counties. 
+
+# Our Data and Our Question
+
+To further our investigation of inequality in Montgomery County, we collected a database of traffic violations occurring in Montgomery County over years 2012-15 from the Montgomery County government database. We question the equality of income as well as racial equality within Montgomery County, Maryland, and our analysis of this dataset will seek to reveal inequalities that exist in Montgomery County, based on the traffic violations that are given by police officers. We will analyze whether the traffic violations are distributed inequally across different locations in Montgomery County. Additionally, we will compare this dataset with the demographic data of Montgomery County, so that we can study whether factors like race or income play a role in traffic violations, and how these are faceted across different regions or violation types in Montgomery County. 
+
+From Montgomery County Gov: "This dataset contains traffic violation information from all electronic traffic violations issued in the county."
+
+The data includes 1,180,227 observations of traffic violations issued in Montgomery County during the years 2012-15. Each observation has 35 identifying variables. These include variables like Race, Gender, Violation Type, District where violation occurred, specific location, date and time. 
+
+While the data did contain 1,180,227 observations, not all observations were usable. We filter out observations where the subagency is "Headquarters and Special Operations" or where the subagency is an empty string since we do not have information on the actual location of these and therefore they cannot validly be used for data analysis. This leaves us with 1,011,885 observations. 
+
+Montgomery County Police Department (MCPD) operates by dividing the county into 6 subagencies, or districts given below:
+
+1st District: Rockville
+
+2nd District: Bethesda
+
+3rd District: Silver Spring
+
+4th District: Wheaton
+
+5th District: Germantown
+
+6th District: Gaithersburg/Montgomery Village. 
+
+Analyzing by location will be a helpful tool as we will see inequalities by region where some regions exhibit a higher wealth or higher proportion of violations.  
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+##filter out '' and hq and special ops subagencies
+query<- paste0("SELECT * FROM traffic_violations
+         WHERE SubAgency IS NOT NULL AND 
+         SubAgency IS NOT 'Headquarters and Special Operations' ")
+res<-dbSendQuery(dcon, query)
+traffic<-dbFetch(res, -1)
+dbClearResult(res)
+#colnames(traffic)
+```
+
+#Our Analysis
+
+To conduct the data analysis, the inequalities among race and district will be looked at across varying factors. These include wealth and tax as well as the proportion of violations given and the type of violation given. From this data, information on discrepancies and discriminations among different districts as well as races will be seen.
+
+To begin, a look at the traffic violations by race and district is given below. 
+```{r, include=FALSE}
+#Coding Race into numeric categorical data for regression
+#traffic$Race[traffic$Race=="ASIAN"]<-1
+#traffic$Race[traffic$Race=="BLACK"]<-2
+#traffic$Race[traffic$Race=="HISPANIC"]<-3
+#traffic$Race[traffic$Race=="NATIVE AMERICAN"]<-4
+#traffic$Race[traffic$Race=="OTHER"]<-5
+#traffic$Race[traffic$Race=="WHITE"]<-6
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.5, fig.width=6.5, include=FALSE}
+res <- dbSendQuery(conn = dcon, '
+SELECT DateOfStop
+FROM Traffic_Violations
+    WHERE DateofStop
+')
+datesOfStops <- dbFetch(res, -1)
+dbClearResult(res)
+datesOfStops <- datesOfStops[[1]]
+formattedDates <- as.Date(datesOfStops, format = "%m/%e/%Y")
+
+hist(formattedDates, breaks = 20, main="Traffic Violations by Date",
+     xlab="Date", cex.main=1, cex.lab=.8, cex.axis=.7)
+abline(v=as.Date("11/06/2012", format="%m/%d/%Y"), lwd=3, col="red")
+
+```
+
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, include=FALSE}
+
+##finding count of violations by agency
+#Agency<-traffic %>% group_by(SubAgency) %>% summarize(Count=length(SubAgency))
+query<-paste0(
+  "SELECT SubAgency, Count(*) as Count
+    FROM (
+		SELECT * FROM traffic_violations
+        WHERE SubAgency IS NOT '' AND 
+        SubAgency IS NOT 'Headquarters and Special Operations')
+    GROUP BY SubAgency;")
+res<-dbSendQuery(dcon,query)
+Agency<-dbFetch(res, -1)
+dbClearResult(res)
+
+
+barplot(Agency$Count/length(traffic$SubAgency), 
+        beside = TRUE, names.arg = c("1st", "2nd", "3rd", "4th", "5th", "6th"),
+        xlab="District", ylab="Frequency of Total Violations by District", 
+        main="Traffic Violation Frequency by SubAgency (District)")
+#(Agencyplot<-ggplot(Agency, aes(x=SubAgency, y=Count/length(traffic$SubAgency))) #+geom_bar(stat="identity") + 
+#  ylab("Proportion of Total Violations by Districts") + 
+#  scale_x_discrete(labels=c("1st district, Rockville" = "1st district",
+#                            "2nd district, Bethesda" = "2nd district",
+#                              "3rd district, Silver Spring" = "3rd district", 
+#                            "4th district, Wheaton"="4th district", 
+#                            "5th district, Germantown"= "5th district",
+#                            "6th district, Gaithersburg / Montgomery Village"= 
+#                              "6th district")) 
+#  + labs(title="Traffic Violation Frequency by Subagency(district)"))
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=10}
+race<-dbSendQuery(dcon,"SELECT SubAgency, Race FROM Traffic_Violations")
+D_R<-dbFetch(race,n=-1)
+
+R1<-filter(D_R,SubAgency==c("1st district, Rockville"))
+R2<-filter(D_R,SubAgency==c("2nd district, Bethesda"))
+R3<-filter(D_R,SubAgency==c("3rd district, Silver Spring"))
+R4<-filter(D_R,SubAgency==c("4th district, Wheaton"))
+R5<-filter(D_R,SubAgency==c("5th district, Germantown"))
+R6<-filter(D_R,SubAgency==c("6th district, Gaithersburg / Montgomery Village"))
+
+DR<-rbind(R1,R2,R3,R4,R5,R6)
+DR2<-na.omit(DR)
+DR2$Race<-as.factor(DR2$Race)
+
+#Traffic Violation by Race in percents by district
+DR2 %>% 
+  ggplot(aes(SubAgency)) + 
+  geom_bar(aes(fill=Race),position="fill")+
+  scale_x_discrete(labels=c("D1","D2","D3","D4","D5","D6"))+
+  labs(title="Traffic Violations Distribution by Race in Percents", x="District", y="Percent") -> racePercentsGraph
+#Traffic Violation by Race in counts by district
+DR2 %>% 
+  ggplot(aes(SubAgency)) + 
+  geom_bar(aes(fill=Race),position="stack")+
+  scale_x_discrete(labels=c("D1","D2","D3","D4","D5","D6")) +
+  labs(title="Traffic Violations Counts by Race", x="District", y="Count") -> 
+  raceCountsGraph
+
+grid.newpage()
+vpCounts <- viewport(y = 3/4, height = 1/2)
+vpPercents <- viewport(y = 1/4, height = 1/2)
+print(raceCountsGraph, vp = vpCounts); print(racePercentsGraph, vp = vpPercents)
+
+# race<-dbSendQuery(dcon,"SELECT SubAgency, Race FROM Traffic_Violations")
+# D_R<-dbFetch(race,n=-1)
+# 
+# R1<-filter(D_R,SubAgency==c("1st district, Rockville"))
+# R2<-filter(D_R,SubAgency==c("2nd district, Bethesda"))
+# R3<-filter(D_R,SubAgency==c("3rd district, Silver Spring"))
+# R4<-filter(D_R,SubAgency==c("4th district, Wheaton"))
+# R5<-filter(D_R,SubAgency==c("5th district, Germantown"))
+# R6<-filter(D_R,SubAgency==c("6th district, Gaithersburg / Montgomery Village"))
+# 
+# DR<-rbind(R1,R2,R3,R4,R5,R6)
+# DR2<-na.omit(DR)
+# DR2$Race<-as.factor(DR2$Race)
+# 
+# #Traffic Violation by Race in percents by district
+# DR2 %>% 
+#   ggplot(aes(SubAgency)) + 
+#   geom_bar(aes(fill=Race),position="fill")+
+#   scale_x_discrete(labels=c("D1","D2","D3","D4","D5","D6"))+
+#   labs(title="Traffic Violations Distribution by Race in Percents", x="District", y="Percent")
+```
+
+**Figure 2. Traffic violations by districts and races in percentage, and Figure 3. Number of traffic violations by districts and races**
+
+To analyze the data on traffic violations, we created two graphs displaying the Violations by Race in each district shown by both Figure 2 and Figure 3. Figure 2 shows the violations by race in each district, while Figure 3 shows traffic violations in each districts by race in percentage. As shown, most of the violations are done by White, Black, and Hispanic populations. However, the population of Black people is significantly lower than that of White, yet there is a significant number of violations, disproportional to its population, that are given to Black people. 
+
+Figure 2 overlays violations by race in each district on number of violations by district. Without looking at race, we can see that District 3 and District 4 have the largest number of traffic violations. From both graphs, it is evident that the two districts issuing the most violations also issue an unproportionally large number of their violations to Black and Hispanic people. Moreover, each subagency (district) in general shows a large number of traffic violations accounted for by Black and Hispanic people. If proportions of traffic violations by minority groups is disproportionally larger than demographic proportions of the minority groups in these districts, this result will support a conclusion that there are racial discriminations in traffic violations. 
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# #Traffic Violation by Race in counts by district
+# DR2 %>% 
+#   ggplot(aes(SubAgency)) + 
+#   geom_bar(aes(fill=Race),position="stack")+
+#   scale_x_discrete(labels=c("D1","D2","D3","D4","D5","D6")) +
+#   labs(title="Traffic Violations Counts by Race", x="District", y="Count")
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=4.7}
+taxtax<-dbSendQuery(dcon,"SELECT ZIPCODE, BILLTOTAL FROM Tax")
+Tax<-dbFetch(taxtax,n=-1)
+
+#Tax by Region
+#assign appropriate data type to BILL.TOTAL and ZIP.CODE
+Tax$BILLTOTAL<-as.numeric(Tax$BILLTOTAL)
+Tax$ZIPCODE<-as.factor(Tax$ZIPCODE)
+
+#omit NA
+tax2<-na.omit(Tax)
+
+#catergorize tax by subagencies
+d2<-tax2
+
+##change name for convenience
+colnames(d2)[colnames(d2)=="ZIPCODE"]<-"zip"
+colnames(d2)[colnames(d2)=="BILLTOTAL"]<-"tax"
+
+##create separate data frames for each subagencies/districts
+D1<-filter(d2,zip==c("20837")|zip==c("20839")|zip==c("20850")|zip==c("20851")|zip==c("20854")|zip==c("20855"))
+D2<-filter(d2,zip==c("20812")|zip==c("20814")|zip==c("20815")|zip==c("20816")|zip==c("20817")|zip==c("20818")|zip==c("20852")|zip==c("20895")|zip==c("20896"))
+D3<-filter(d2,zip==c("20707")|zip==c("20866")|zip==c("20901")|zip==c("20912")|zip==c("20904")|zip==c("20910"))
+D4<-filter(d2,zip==c("20832")|zip==c("20853")|zip==c("20860")|zip==c("20861")|zip==c("20862")|zip==c("20868")|zip==c("20902")|zip==c("20905")|zip==c("20906"))
+D5<-filter(d2,zip==c("20838")|zip==c("20841")|zip==c("20872")|zip==c("20874")|zip==c("20876")|zip==c("20882"))
+D6<-filter(d2,zip==c("20877")|zip==c("20878")|zip==c("20879")|zip==c("20880")|zip==c("20886"))
+
+##remove observations with tax=0 (for log) and named them by their districts
+RV<-subset(D1$tax,D1$tax>0) #D1: Rockville
+BE<-subset(D2$tax,D2$tax>0) #D2: Bethesda
+SS<-subset(D3$tax,D3$tax>0) #D3: Silver Springs
+WH<-subset(D4$tax,D4$tax>0) #D4: Wheaton
+GT<-subset(D5$tax,D5$tax>0) #D5: Germantown
+MV<-subset(D6$tax,D6$tax>0) #D6: Montgomery Village
+
+#name each district data frame with each district names and gather() to add district names as variable 
+Dis1<-data.frame(RV)
+dis1<-gather(Dis1,"District","tax",1)
+Dis2<-data.frame(BE)
+dis2<-gather(Dis2,"District","tax",1)
+Dis3<-data.frame(SS)
+dis3<-gather(Dis3,"District","tax",1)
+Dis4<-data.frame(WH)
+dis4<-gather(Dis4,"District","tax",1)
+Dis5<-data.frame(GT)
+dis5<-gather(Dis5,"District","tax",1)
+Dis6<-data.frame(MV)
+dis6<-gather(Dis6,"District","tax",1)
+
+#combine all district data frames into one 
+Dis<-rbind(dis1,dis2,dis3,dis4,dis5,dis6)
+
+#give order to district so that when we make graphs they are sequenced from district 1 to district 6
+Dis$District<-factor(Dis$District,c("RV","BE","SS","WH","GT","MV"),ordered = TRUE)
+
+#when doing analysis, log(tax) because they become normal once loged. 
+Dis %>% 
+  ggplot(aes(District,log(tax))) +
+  geom_boxplot() + labs(title="Comparison of the log(tax) by District") +
+  scale_y_continuous(limits=c(7,10))
+```
+
+**Figure 4. Log of real estate tax by districts** We next considered the real estate tax by district to consider the wealth inequality of the districts. While the untransformed real estate tax by districts was very skewed, the log of the tax was fairly normal, thus the log of the data was used to compare how different the distribution of the real estate taxes are different between districts. 
+
+Based on Figure 4, it is seen that Districts 1 and 2 are the wealthiest since they have the highest amount of tax. This inequality in income is seen even further by Table 1, where we can see that the median of the tax in Districts 1 and 2 is nearly $3000 higher than that in Districts 5 and 6. This suggests that Montgomery County does have regions of extreme wealth while other within it are not nearly as wealthy. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+table1<-matrix(rep(0,times=16),ncol=3)
+rownames(table1)<-c("D1","D2","D3","D4","D5","D6")
+colnames(table1)<-c("Mean(Tax)","Median(Tax)","log(Mean Tax)")
+```
+
+**Table 1. Mean, median, and log(mean) of real estate taxes by districts**
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+table1[1,1:3]<-c(mean(dis1$tax),median(dis1$tax),mean(log(dis1$tax)))
+table1[2,1:3]<-c(mean(dis2$tax),median(dis2$tax),mean(log(dis2$tax)))
+table1[3,1:3]<-c(mean(dis3$tax),median(dis3$tax),mean(log(dis3$tax)))
+table1[4,1:3]<-c(mean(dis4$tax),median(dis4$tax),mean(log(dis4$tax)))
+table1[5,1:3]<-c(mean(dis5$tax),median(dis5$tax),mean(log(dis5$tax)))
+table1[6,1:3]<-c(mean(dis6$tax),median(dis6$tax),mean(log(dis6$tax)))
+
+
+library(knitr)
+library(kableExtra)
+kable(table1) %>% 
+  kable_styling(full_width=FALSE)
+```
+
+Table 1 shows the Mean, Median, and log of the Mean Tax by District. It is apparent that there is a significant disparities between real estate values in these districts. Especially, real estates in Districts 1 and 2 have significantly higher taxes that of the other four districts. Relating this result to those of Figures 2 and 3, we can see that not only there is more traffic violations issued to minority groups in Districts 3 and 4, but also, these districts are likely to have poorer neighborhoods as their significantly lower real estate taxes imply. 
+
+```{r, echo = FALSE, message = FALSE, warning=FALSE, fig.height= 7, fig.width=8}
+pop<-as.data.frame(NULL,row.names=NULL)
+pop[1,1]<-"D1"
+pop[2,1]<-"D2"
+pop[3,1]<-"D3"
+pop[4,1]<-"D4"
+pop[5,1]<-"D5"
+pop[6,1]<-"D6"
+pop[1,2]<-length(subset(Dis$tax,Dis$District=="RV"))
+pop[2,2]<-length(subset(Dis$tax,Dis$District=="BE"))
+pop[3,2]<-length(subset(Dis$tax,Dis$District=="SS"))
+pop[4,2]<-length(subset(Dis$tax,Dis$District=="WH"))
+pop[5,2]<-length(subset(Dis$tax,Dis$District=="GT"))
+pop[6,2]<-length(subset(Dis$tax,Dis$District=="MV"))
+colnames(pop)<-c("District","population")
+
+
+race<-as.data.frame(NULL,row.names=NULL)
+race[1,1]<-"D1"
+race[2,1]<-"D2"
+race[3,1]<-"D3"
+race[4,1]<-"D4"
+race[5,1]<-"D5"
+race[6,1]<-"D6"
+race[1,2]<-length(R1$Race)
+race[2,2]<-length(R2$Race)
+race[3,2]<-length(R3$Race)
+race[4,2]<-length(R4$Race)
+race[5,2]<-length(R5$Race)
+race[6,2]<-length(R6$Race)
+colnames(race)<-c("District","violations")
+
+pop$population<-pop$population/sum(pop$population)
+
+
+race$violations<-race$violations/sum(race$violations)
+
+popviol<-merge(pop, race, by="District")
+popviol<-select(popviol,population,violations)
+popviol<-t(as.matrix(popviol[c("population", "violations")]))
+barplot(popviol, beside=TRUE,
+        names.arg = c("D1", "D2", "D3", "D4","D5", "D6"),
+        xlab="District", ylab="Proportion",
+        main="Comparing Proportion of Population in each District\n vs. Proportion of Violations in each District", cex.main=.9, cex.axis=.9, cex.lab=1.1, cex.names=.9, col=c("darkred", "royalblue"))
+legend("topleft", c("Proportion of Population by District","Proportion of Violation by District"), pch=15, cex = .8,
+       col=c("darkred","royalblue"), 
+       bty="n")
+
+
+```
+**Figure 5. Comparing Proportion of Population of Montgomery County in each District to Proportion of Violations in Montgomery County in each District** Figure 5 compares the population distribution across the districts to the distribution of violations by the districts. Data on population within each county was not available, however data on the number of real estates in each district was found. This data was used as a proxy for population, under the assumption that more real estates in a district would proportionally mean a higher population within that district. 
+
+It can be seen that although Districts 3 and 4 only contain approximately 15% and 20% of the entire population of Montgomery County, they contain greater than 20% and 25% of the violations in all of Montgomery County for this time period, respectively. Again, this shows a clear discrepancy of how the violations are distributed. 
+
+Relating this to previous data, from Figure 4 and Table 1, it can be seen that Districts 1 and 2 are the richest districts while Districts 3 and 4 are poorer. From Figure 5, we can additionally see that Districts 1 and 2 contain a significantly lower proportion of violations as compared to their population proportion, which is in complete opposition to Districts 3 and 4. This follows that poorer regions are receiving a disproportional amount of violations as compared to more wealthy regions of Montgomery County. 
+
+
+![Current Map of Montgomery County](C:/Users/jmyyu/Documents/STATPROJECTMAP1.png)
+
+**Figure 6. Visualizing the distribution of traffic violations on the map of Montgomery County.** Each black dots represents one incident of traffic violation. The red line delineates Montgomery County as well as its district lines. 
+
+Figure 6 plots all the traffic violations on a map of Montgomery County. You can notice that traffic violations are significantly more frequent in urban areas near Washington D.C. Some potential reasons for this is that population density increases near metropolitan area, as well as the higher ratio of minority races in urban areas, which have already been seen to have an increasing number of traffic violations issued to them. 
+
+Interestingly, there are some points of traffic violations outside of the County lines. This could indicate that police officers are ticketing outside of their jurisdiction. 
+
+This data analysis was conducted using SQL and R but due to the size of the map, rendering the data created problems in a pdf file; as such the map is attached as a png file.
+
+
+
+![Map Of Montgomery County from 2013 to 2016](C:/Users/jmyyu/Documents/Maptime300.png)
+
+
+**Figure 7. Visualizing the distribution of traffic violations over time in Montgomery County.** The blue lines indicate the district lines within Montgomery County. Over time, the distribution of violations by locations does not seem to change, indicating that police most likely are issuing violations in the same area and that the locations where violations need to be addressed is not changing.
+
+Additionally, by looking at the district lines, it can be seen that not all districts are the same size. Specifically, districts 3, 4 and 2, are the smaller districts closer to Washington D.C.. Those districts additionally have a disproportionately high amount of violations by district compared to their population, supporting even further that violations are issued more frequently in urban areas. 
+
+
+
+```{r, eval=FALSE, include=FALSE}
+##MAP CODE
+##Using SQLite
+#install.packages("RSQLite")
+library(RSQLite)
+library(ggmap)
+library(yrbss) 
+library(dplyr)
+
+countylines <- filter(map_data(map = "county") , region=="maryland" & subregion=="montgomery")
+colnames(countylines)[1]<- "lon"
+
+
+dcon <- dbConnect(SQLite(), dbname = "/Users/Nic/Documents/STAT 405/Project/MONTGOMERY.sqlite")
+res <- dbSendQuery(conn = dcon, "SELECT Latitude, Longitude 
+                   FROM Traffic_Violations 
+                   WHERE Latitude between 38.918004 and 39.389055 
+                   and Longitude between -77.578270 and -76.876369;")
+a <- dbFetch(res, -1)
+dbClearResult(res)
+dbDisconnect()
+
+ggmap(get_googlemap('Montgomery County, Maryland',maptype = "roadmap"))+  geom_vline(xintercept = c(-77.578270,-76.876369))+geom_hline(yintercept = c(38.918004,39.389055))+geom_polygon(data = countylines, fill = NA, color = "red")+ geom_point(data=a, aes(x=Longitude, y=Latitude),size=.01,shape=1)
+```
+
+
+
+```{r, eval=FALSE, include=FALSE}
+##MAP CODE
+## this is og map with police district lines
+library(rgdal)
+library(sf)
+library(RSQLite)
+library(ggmap)
+library(yrbss) 
+library(dplyr)
+
+dcon <- dbConnect(SQLite(), dbname = "/Users/Nic/Documents/STAT 405/Project/MONTGOMERY.sqlite")
+res <- dbSendQuery(conn = dcon, "SELECT Latitude, Longitude,DateOfStop
+                  FROM Traffic_Violations 
+                   WHERE Latitude between 38.918004 and 39.389055 
+                   and Longitude between -77.578270 and -76.876369;")
+a <- dbFetch(res, -1)
+dbClearResult(res)
+dbDisconnect(conn = dcon)
+
+shape <- readOGR(dsn = '/Users/Nic/Documents/STAT 405/Project/police_district')
+shape1 <- fortify(shape)
+colnames(shape1)[1]<- "lon"
+
+ggmap(get_googlemap('Montgomery County, Maryland',maptype = "roadmap"),legend = "right")+  
+  geom_vline(xintercept = c(-77.578270,-76.876369),show.legend = TRUE)+
+  geom_hline(yintercept = c(38.918004,39.389055),show.legend = TRUE)+
+  geom_point(data=a, aes(x=Longitude, y=Latitude),size=.01,shape=1) +
+  geom_polygon(data= shape1, fill= NA ,color="blue", show.legend = TRUE ,mapping = aes (x=lon, y=lat, group= group), size=2) + 
+  labs(x="Longitude", y="Latitude",title="Montgomery County, Maryland")
+```
+
+
+
+```{r, eval=FALSE, include=FALSE}
+##MAP CODE
+#by date
+
+
+library(rgdal)
+library(sf)
+library(RSQLite)
+library(ggmap)
+library(yrbss) 
+library(dplyr)
+library(gridExtra)
+
+#getting my data from sql
+dcon <- dbConnect(SQLite(), dbname = "/Users/Nic/Documents/STAT 405/Project/MONTGOMERY.sqlite")
+res <- dbSendQuery(conn = dcon, "SELECT Latitude, Longitude,DateOfStop
+                  FROM Traffic_Violations 
+                   WHERE Latitude between 38.918004 and 39.389055 
+                   and Longitude between -77.578270 and -76.876369;")
+a <- dbFetch(res, -1)
+dbClearResult(res)
+dbDisconnect(conn = dcon)
+
+
+#getting the shapefile for the district lines
+shape <- readOGR(dsn = '/Users/Nic/Documents/STAT 405/Project/police_district')
+shape1 <- fortify(shape)
+colnames(shape1)[1]<- "lon"
+
+#formatting my data from sql as dates
+a$DateOfStop <- as.Date(a$DateOfStop, format = "%m/%e/%Y")
+
+#building my base map
+mapbase <- ggmap(get_googlemap('Montgomery County, Maryland',maptype = "roadmap"),legend = "right")+  
+  geom_vline(xintercept = c(-77.578270,-76.876369),show.legend = TRUE)+
+  geom_hline(yintercept = c(38.918004,39.389055),show.legend = TRUE)
+  
+#getting my data by year
+  b2013 <- filter(a,DateOfStop > as.Date(paste(2013,"01","01",sep="-")) & DateOfStop < as.Date(paste(2014,"01","01",sep="-")))
+  
+  b2014 <- filter(a,DateOfStop > as.Date(paste(2014,"01","01",sep="-")) & DateOfStop < as.Date(paste(2015,"01","01",sep="-")))
+    
+  b2015 <- filter(a,DateOfStop > as.Date(paste(2015,"01","01",sep="-")) & DateOfStop < as.Date(paste(2016,"01","01",sep="-")))
+  
+  b2016 <- filter(a,DateOfStop > as.Date(paste(2016,"01","01",sep="-")) & DateOfStop < as.Date(paste(2017,"01","01",sep="-")))
+  
+  pointsize <- .1;
+  linesize <- 1;
+  fontsize <- 10;
+  
+  map2013 <- 
+    mapbase+
+  geom_point(data=b2013, aes(x=Longitude, y=Latitude),size=pointsize,shape=1) +
+  geom_polygon(data= shape1, fill= NA ,color="blue", show.legend = TRUE ,mapping = aes (x=lon, y=lat,              group= group), size=linesize)+
+  labs(x="Longitude", y="Latitude",title="2013",size=fontsize)
+  
+  map2014 <- 
+    mapbase+
+  geom_point(data=b2014, aes(x=Longitude, y=Latitude),size=pointsize,shape=1) +
+  geom_polygon(data= shape1, fill= NA ,color="blue", show.legend = TRUE ,mapping = aes (x=lon, y=lat,              group= group), size=linesize)+
+  labs(x="Longitude", y="Latitude",title="2014",size=fontsize)
+    
+  map2015 <- 
+    mapbase+
+  geom_point(data=b2013, aes(x=Longitude, y=Latitude),size=pointsize,shape=1) +
+  geom_polygon(data= shape1, fill= NA ,color="blue", show.legend = TRUE ,mapping = aes (x=lon, y=lat,              group= group), size=linesize)+
+  labs(x="Longitude", y="Latitude",title="2015",size=fontsize)
+  
+  
+  map2016 <- 
+    mapbase+
+  geom_point(data=b2016, aes(x=Longitude, y=Latitude),size=pointsize,shape=1) +
+  geom_polygon(data= shape1, fill= NA ,color="blue", show.legend = TRUE ,mapping = aes (x=lon, y=lat,              group= group), size=linesize)+
+  labs(x="Longitude", y="Latitude",title="2016",size=fontsize)
+  
+grid.arrange(map2013,map2014,map2015,map2016)
+
+#5000
+```
+
+
+
+
+```{r, message=FALSE, warning=FALSE, echo = FALSE, fig.height= 6, fig.width=8}
+
+
+#finding traffic violation counts by Race
+#Race<-traffic %>% group_by(Race) %>% summarize(racecount=length(Race))
+query<-paste0("SELECT Race, Count(*) as racecount
+              FROM (SELECT * FROM traffic_violations
+					WHERE SubAgency IS NOT '' AND SubAgency IS NOT 'Headquarters and Special Operations')
+              GROUP BY Race;")
+res<-dbSendQuery(dcon, query)
+Race<-dbFetch(res,-1)
+dbClearResult(res)
+
+#Race<-mutate(Race, proportion=racecount/1180227)
+#doing mutate function through R 
+query<-paste0("SELECT Race, racecount, (racecount/1180227.) AS proportion 
+              FROM (SELECT Race, Count(*) as racecount
+              FROM (SELECT * FROM traffic_violations
+					WHERE SubAgency IS NOT '' AND SubAgency IS NOT 'Headquarters and Special Operations')
+              GROUP BY Race);")
+res<-dbSendQuery(dcon, query)
+Race<-dbFetch(res,-1)
+dbClearResult(res)
+
+
+query<-paste0("SELECT * from censusData")
+res<-dbSendQuery(dcon, query)
+census<-dbFetch(res,-1)
+dbClearResult(res)
+#data was edited in csv
+#Race_census<-merge(Race, census, by.y=Race)
+census$racecount<-as.numeric(census$racecount)
+census$proportion<-as.numeric(census$proportion)
+census$Race<-as.factor(census$Race)
+Race$Race<-as.factor(Race$Race)
+
+#(Racegraph<-ggplot()+ 
+#  geom_bar(data=Race, stat="identity",
+#           aes(x=Race, y=proportion, color="Violations by Race"), fill=NA) + 
+#  geom_bar(data=census, stat="identity", 
+#           aes(x=Race, y=proportion, color="Population by Race"), fill=NA)+ #labs(title="Comparing Traffic Violations by Race vs. Proportion of Population",
+#       caption="Data was edited") +theme(axis.text.x=element_text(size=6)))
+
+racecensus<-merge(Race, census, by="Race")
+racecensus<-t(as.matrix(racecensus[c("proportion.x", "proportion.y")]))
+#prop.x is for race, prop.y is for census data
+
+#NEW BARPLOTTTT
+barplot(racecensus, beside=TRUE, names.arg = c("Asian", "Black", "Hispanic", "Native\nAmerican","Other", "White"),
+        xlab="Race", ylab="Proportion",
+        main="Comparing Traffic Violations by Race vs. Proportion of Population", col=c("darkred", "royalblue"))
+legend("topleft", c("Proportion Violations by Race","Proportion of Population"), pch=15, 
+       col=c("darkred","royalblue"), 
+       bty="n")
+#population numbers of based on total population * proportions given
+#proportions sum up to over 100% because ppl may identify as more than one category
+#DATA HAS BEEN EDITED SO THAT OTHER INCLUDES TWOR OR MORE RACES AND NATIVE HAWAIIAN/PACIFIC ISLANDER
+#WHITE=WHITE ALONE NOT HISPANIC
+```
+
+**Figure 8. Comparing race population distribution and race distribution of traffic violation.**
+
+Figure 8 compares the distribution of the population in Montgomery County by Race to the distribution of violations by Race in Montgomery County. 
+
+Once again, a racial inequality can be seen among white and black residents. White residents have greater than 40% of the total population of Montgomery County yet the total number of traffic violations issued to them is only just above 30%. This is a 10% difference, nearly a quarter of their total population. On the other hand, Black people represent just under 20% of Montgomery County's total population, yet the have more than 25% of the total violations in Montgomery County, again a nearly a quarter of their total population. 
+
+White people see a significantly lower number of traffic violations as compared to their racial population while Black people see a significantly higher number of traffic violations as compared to their racial population. Similar to the white population, the Asian population additionally sees a significantly lower number of traffic violations compared to their population proportion. 
+
+#Regression Table
+
+Montgomery County Police issue a variety of violations to traffic offenders. These include warnings, citations, SERO, and ESERO violation types. Warnings and citations are for drivers breaking traffic laws while SERO and ESERO violation types indicate a malfunction of equipment. The dataset on traffic violations gives information on what type of violation was given, with a citation being a heavier violation type than a warning. 
+
+The following regression table shows an analysis of racial inequalities among the violations and citations given out. In conducting this, a dummy variable was created where  1 indicates the violation type is a citation and 0 indicates otherwise on the race regressors. Because the data is categorical, a logit regression on the values was conducted.
+
+From the output table below, it can be seen that the coefficients on Black and Hispanic are significantly larger than that of the other races. These coefficients indicate the effect on being a certain race on the likelihood of being given a citation. On the other hand, it can be seen that the coefficient on Asian is negative, suggesting a negative relationship with being Asian and being given a citation. All the coefficients are significant at the 1% level. 
+
+Additionally, the coefficient on the dummy variable representing Black residents was both positive and largest in magnitude, indicating that being black does signficantly increase the likelihood of receiving a citation instead of a warning, more than any other race. This could point to a severe racial discrepancy where Blacks are seen as having the highest odds of having a traffic violation. 
+```{r, echo = FALSE, message = FALSE, warning=FALSE, include=FALSE}
+Citation <- ifelse(traffic$ViolationType == "Citation", 1, 0)
+Black <- ifelse(traffic$Race == "BLACK", 1, 0)
+White <- ifelse(traffic$Race == "WHITE", 1, 0)
+Asian <- ifelse(traffic$Race == "ASIAN", 1, 0)
+Hispanic <- ifelse(traffic$Race == "HISPANIC", 1, 0)
+NativeAmerican <- ifelse(traffic$Race == "NATIVE AMERICAN", 1, 0)
+
+reg <- glm(Citation ~ Black + White + Asian + Hispanic + NativeAmerican, family = binomial())
+
+```
+
+**Table 2: Regression Analysis on Race on probability of receiving a citation.**
+
+```{r,echo=FALSE, warning=FALSE, message=FALSE, fig.height=6, fig.width= 7}
+table2<-matrix(rep(0,times=5),ncol=1)
+rownames(table2)<-c("Black","White","Asian","Hispanic","Native American")
+colnames(table2)<-c("Coefficient")
+
+table2[1,1]<-0.298
+table2[2,1]<-0.146
+table2[3,1]<--0.074
+table2[4,1]<-0.5
+table2[5,1]<--0.085
+
+kable(table2) %>% 
+  kable_styling(full_width=FALSE, font_size=40)
+```
+
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+#create table with summary stats of alcohol 
+query<-paste0("
+DROP TABLE IF EXISTS alcoholsum;")
+dbSendQuery(dcon, query)
+
+query<-paste0("CREATE TABLE alcoholsum 
+            (SubAgency TEXT, Alcohol INT, PRIMARY KEY (SubAgency));")
+dbSendQuery(dcon, query)
+
+query<-paste0("INSERT INTO alcoholsum
+              (SubAgency, Alcohol)
+              VALUES ('1st', 88),
+              ('2nd', 181),
+              ('3rd', 71),
+              ('4th', 253),
+              ('5th', 1098),
+              ('6th', 160);")
+dbSendQuery(dcon, query)
+query<-paste0("SELECT * from alcoholsum")
+res<-dbSendQuery(dcon, query)
+alcoholsum<-dbFetch(res, -1)
+dbClearResult(res)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+
+#ggplot(alcoholsum, aes(x=SubAgency, y=Alcohol/sum(Alcohol)))+geom_bar(stat="identity")
+#Shows that the first districts has enormously highest rate of alcohol related accidents
+Agency$SubAgency<-revalue(Agency$SubAgency, c("1st district, Rockville" = "1st", 
+                                              "2nd district, Bethesda" = "2nd", "3rd district,
+                                              Silver Spring" = "3rd", "4th district,
+                                              Wheaton"="4th", "5th district, 
+                                              Germantown"= "5th", "6th district, 
+                                              Gaithersburg / Montgomery Village"= "6th"))
+alcagency<-cbind(alcoholsum, Agency)
+#merge two datasets to do another comparison
+alcagency["Alcohol"]<-alcagency$Alcohol/sum(alcagency$Alcohol)
+alcagency["Count"]<-alcagency$Count/sum(alcagency$Count)
+alcagency<-t(as.matrix(alcagency[c("Alcohol", "Count")]))
+
+barplot(alcagency, beside=TRUE, col=c("darkred", "royalblue"), 
+        names.arg = c("1st", "2nd", "3rd", "4th", "5th", "6th"), 
+        xlab="District", ylab="Proportion", main ="Proportion of alcohol violations by district \nvs proportion of traffic violations by district", cex.axis = .8, cex.names = .8, cex.main=1)
+legend("topleft", c("Proportion Alcohol Violations","Proportion Traffic Violations"), pch=15, 
+       col=c("darkred","royalblue"), 
+       bty="n")  
+
+
+#ggplot(alcagency, aes(x=SubAgency, y=Alcohol/sum(Alcohol)))+
+#  geom_bar(stat="identity", aes(color="Proportion Alcohol Violations"), fill=NA) +
+#  geom_bar(stat="identity",aes(x=SubAgency, y=Count/1011875, color="Proportion Traffic #Violations"), 
+#           fill=NA) +
+#  labs(title="Proportion of alcohol violations by \ndistrict vs proportion of traffic #violations by district", subtitle="alcohol level by district is the proportion of alcohol #violations in their district \nover the total number of alcohol violations in Montgomery #County", x="District", y="Proportion")
+```
+
+
+
+```{r, echo = FALSE, message = FALSE, warning=FALSE}
+library(grid)
+
+#width: Proportion of violations by district (sum to 1 by row)
+#height: proportion of violations by Race (sum to 1 by column)
+#color: proportion of CITATIONS by race and district. shade darker for 
+#higher proportion OR if we can find more/better census data that shows 
+#income by race and district (look up by zipcode) then do that instead
+#cit (dataframe below will give info for color)
+#Race shows the proportion and count of traffic violations by each race
+#race shows the count of traffic violations by DISTRICT NOT BY RACE. yes this is confusing
+#but you need to run the code below first since we altered it a little earlier
+
+##AGGREGATING DATA FOR VIOLATIONS BY RACE AND SUBAGENCY 
+detach("package:plyr", unload=TRUE)
+traffic %>% ungroup() %>%  group_by(SubAgency, Race) %>% summarise(Count=sum(ViolationType=="Citation")) -> cit
+cit<-cit[c(-1,-2,-3),]
+
+#repeated code from before
+race<-as.data.frame(NULL,row.names=NULL)
+race[1,1]<-"D1"
+race[2,1]<-"D2"
+race[3,1]<-"D3"
+race[4,1]<-"D4"
+race[5,1]<-"D5"
+race[6,1]<-"D6"
+race[1,2]<-length(R1$Race)
+race[2,2]<-length(R2$Race)
+race[3,2]<-length(R3$Race)
+race[4,2]<-length(R4$Race)
+race[5,2]<-length(R5$Race)
+race[6,2]<-length(R6$Race)
+colnames(race)<-c("District","violations")
+
+###MAKING THE KILLERRR PLOTTTTT *SLASH* *CLANG* *POWWWWW*
+# in order of districts 1 - 6
+propViolByDist <- popviol[c(2, 4, 6, 8, 10, 12)]
+
+#as.data.frame(Race)
+#Race$Race[4] <- 'NAT AMER.'
+#Race$Race[4]
+levels(Race$Race)<- c("ASIAN", "BLACK", "HISPANIC", "NAT AMER", 
+                      "OTHER", "WHITE")
+propViolByRace <- Race$proportion
+# order = Asian, Black, Hisp, Nat Am, Other, White
+# library(grid)
+# grid.newpage()
+a <- 0:5
+b <- 1:6
+
+#library(dplyr)
+colorOfRect <- function(num) {
+  if (between(num, 0, 9999)) {
+    "green3"
+  } else if (between(num, 10000, 19999)) {
+    "yellow2"
+  } else if (between(num, 20000, 29999)) {
+    "darkorange2"
+  } else {
+    "firebrick3"
+  }
+}
+
+grid.newpage()
+for (i in a) {
+  for (n in b) {
+    grid.rect(x = (i+1)/7.5, y = n/7, width = .5 * propViolByDist[i+1], 
+              height = .5 * propViolByRace[n], 
+              gp = gpar(fill = colorOfRect(cit$Count[6*i+n])))
+  }
+}
+for (i in b) {
+  grid.text(as.character(Race$Race[i]), x = 1/20, y = i/7,
+            gp = gpar(fontsize = 8))
+}
+for (i in b) {
+  grid.text(paste0("D", as.character(i)), x = i/7.5, y = 1/18, gp = gpar(fontsize = 9))
+}
+grid.text("A Unique Look at Citations Issued by District and Race", y = 17.73/18)
+grid.text("Legend", y = 14.35/18, x = 7/7.5, gp = gpar(fontsize = 10))
+grid.rect(x = 6.7/7.5, y = 12.5/18, width = .03, height = .04, gp = gpar(fill = "green3"))
+grid.text("Between 0\nand 10,000\nCitations", y = 12.6/18, x = 7.2/7.5, gp = gpar(fontsize = 7))
+grid.rect(x = 6.7/7.5, y = 10/18, width = .03, height = .04, gp = gpar(fill = "yellow2"))
+grid.text("Between 10\nand 20,000\nCitations", y = 10.1/18, x = 7.2/7.5, gp = gpar(fontsize = 7))
+grid.rect(x = 6.7/7.5, y = 7.5/18, width = .03, height = .04, gp = gpar(fill = "darkorange2"))
+grid.text("Between 20\nand 30,000\nCitations", y = 7.6/18, x = 7.2/7.5, gp = gpar(fontsize = 7))
+grid.rect(x = 6.7/7.5, y = 5/18, width = .03, height = .04, gp = gpar(fill = "firebrick3"))
+grid.text("Greater than\n30,000\nCitations", y = 5.1/18, x = 7.2/7.5, gp = gpar(fontsize = 7))
+```
+**Figure 9. Comparison by Race and District of proportion of violations as well as violation type.** Figure 9 shows a comprehensive overall summary of the most important points of the data analysis conducted. Each box corresponds to a different race and district combination. The width of the rectangles indicates the proportion of violations by District, while the height indicates the proportion of violations by Race. The color of each box corresponds to a different amount of citations given for that Race and District combination. The more red the color is, the more citations are given for that race and district combination. 
+Figure 8 shows the greatest results that have been found within the data analysis. Districts 3 and 4 hold the highest number of violations despite having a much lower population proportion. Hispanic and Black have a disproportionately higher number of violations as compared to their poulation proportion. Additionally, Black and Hispanic are significantly more likely to have citations given to them rather than warnings. 
+
+#Summary and Discussion
+
+Based on the data a clear inequality in wealth among the districts and a racial discrepancy in traffic violations can be seen. Black and Hispanic identifying citizens of Montgomery County have disproportionately higher rates of receiving traffic violations than other races which is a concern to look at. Additionally, based on the regression analysis conducted, it is seen that Blacks and Hispanics have a significantly higher chance of having a traffic violation given to them based on their race with the highest beta values for their regressors. Clearly, a racial discrepancy does exist within Montgomery County.
+
+However, could this racial discrepancy exist beyond Montgomery County? Racial tensions have always been a national problem. By looking at a larger dataset that looks at all of Maryland, the entire Midatlantic, as well as the entire nation, and even globally, this quesiton could be answered. Could police departments be overall discriminating against minorities or is it only within Montgomery County. Furthermore, hidden variables should be looked at that could contribute to this. Perhaps police officers are not discriminating against certain racial minorities, but rather a hidden variable, cannot be seen. For instance, could it be solely dependent on population density, where higher densities have a higher number of violations but additionally have a higher population of minorities? 
+
+These are further questions that go beyond the dataset given but would allow for important implications to be clarified or point to important social issues that Montgomery County and beyond should address. While the dataset was limited, it is important to look into further research to see what else can be done to diagnose this problem as well as solve it. 
+
+
+
+# Citations
+
+* MCG ESB Service (2017). Traffic Violations [Data File]. Retrieved from dataMontogmery; https://data.montgomerycountymd.gov/Public-Safety/Traffic-Violations/4mse-ku6q
+
+* U.S. Bureau of the Census (2017). Income Inequality in Fairfax County, VA [2020RATIO051059]. Retrieved from FRED, Federal Reserve Bank of St. Louis; https://fred.stlouisfed.org/series/2020RATIO051059
+
+* MCG ESB Service. (2016). Real Property Tax - 2016 [Data file]. Retrieved from dataMontgomery; https://data.montgomerycountymd.gov/Finance-Tax-Property/Real-Property-Tax-2016/uvy4-94zr
+
+* U.S. Bureau of the Census (2017). Income Inequality in Montgomery County, MD [2020RATIO024031]. Retrieved from FRED, Federal Reserve Bank of St. Louis; https://fred.stlouisfed.org/series/2020RATIO024031
+
+* U.S. Bureau of the Census (2017). QuickFacts Montgomery County, Maryland [Summary Statistics]. Retrieved from https://www.census.gov/quickfacts/fact/table/montgomerycountymaryland/RHI125216?#qf-headnote-a
+
+* Woolsey, Matt. "Complete List: America's Richest Counties". Forbes. 22 January 2008.
+
+* Botelho, G., Yan, H., & Ford, D. (2015, April 29). Baltimore protests: Crowds stand firm after curfew. Retrieved October 20, 2017, from http://www.cnn.com/2015/04/28/us/baltimore-riots/index.html
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
